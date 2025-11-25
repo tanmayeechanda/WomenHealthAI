@@ -11,6 +11,7 @@ const PORT = process.env.PORT || 4000;
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use("/api/ai", require("./routes/ai"));
 
 // Health check
 app.get("/", (req, res) => {
