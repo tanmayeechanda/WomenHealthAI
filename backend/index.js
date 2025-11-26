@@ -12,6 +12,9 @@ const PORT = process.env.PORT || 4000;
 app.use(cors());
 app.use(express.json());
 app.use("/api/ai", require("./routes/ai"));
+app.use("/api/period", require("./routes/period"));
+app.use("/api/diary", require("./routes/diary"));
+app.use("/api/auth", require("./routes/auth"));
 
 // Health check
 app.get("/", (req, res) => {
