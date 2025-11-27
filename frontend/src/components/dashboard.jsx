@@ -6,7 +6,7 @@ import Diary from "./Diary";
 import GameSuggestions from "./GameSuggestions";
 import BookSuggestions from "./BookSuggestions";
 
-function Dashboard({ user, onLogout }) {
+function Dashboard({ user, token, onLogout }) {
   const [activeSection, setActiveSection] = useState("voice");
 
   const renderSection = () => {
@@ -20,9 +20,9 @@ function Dashboard({ user, onLogout }) {
       case "diary":
         return <Diary />;
       case "games":
-        return <GameSuggestions />;
+        return <GameSuggestions token={token} />;
       case "books":
-        return <BookSuggestions />;
+        return <BookSuggestions token={token} />;
       default:
         return <AIChatVoice />;
     }
