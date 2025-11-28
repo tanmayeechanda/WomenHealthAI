@@ -4,6 +4,8 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const resourcesRoutes = require("./routes/resources");
 const authRoutes = require("./routes/auth");
+const path = require("path");
+const wellnessRoutes = require("./routes/wellness"); // ✔ FIXED
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -11,19 +13,20 @@ const PORT = process.env.PORT || 4000;
 // Middleware
 app.use(cors());
 app.use(express.json());
+
 app.use("/api/ai", require("./routes/ai"));
 app.use("/api/period", require("./routes/period"));
 app.use("/api/diary", require("./routes/diary"));
-app.use("/api/auth", require("./routes/auth"));
+app.use("/api/auth", authRoutes); // ✔ keep only this one
+app.use("/api/wellness", wellnessRoutes); // ✔ fixed path
+app.use("/api/resources", resourcesRoutes);
+
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // Health check
 app.get("/", (req, res) => {
   res.send("Backend is running with auth ✅");
 });
-
-// Auth routes
-app.use("/api/auth", authRoutes);
-app.use("/api/resources", resourcesRoutes);
 
 // MongoDB connection
 mongoose
