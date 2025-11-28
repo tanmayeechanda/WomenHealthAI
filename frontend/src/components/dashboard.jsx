@@ -5,6 +5,7 @@ import PeriodLogger from "./PeriodLogger";
 import Diary from "./Diary";
 import GameSuggestions from "./GameSuggestions";
 import BookSuggestions from "./BookSuggestions";
+import WellnessPage from "./WellnessPage";
 
 function Dashboard({ user, token, onLogout }) {
   const [activeSection, setActiveSection] = useState("voice");
@@ -23,6 +24,8 @@ function Dashboard({ user, token, onLogout }) {
         return <GameSuggestions token={token} />;
       case "books":
         return <BookSuggestions token={token} />;
+      case "wellness":
+        return <WellnessPage token={token} />;
       default:
         return <AIChatVoice />;
     }
@@ -116,6 +119,12 @@ function Dashboard({ user, token, onLogout }) {
           onClick={() => setActiveSection("books")}
         >
           Book Suggestions
+        </button>
+        <button
+          style={navButtonStyle(activeSection === "wellness")}
+          onClick={() => setActiveSection("wellness")}
+        >
+          Personal Wellness
         </button>
       </div>
 
