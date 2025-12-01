@@ -8,28 +8,8 @@ import BookSuggestions from "./BookSuggestions";
 import WellnessPage from "./WellnessPage";
 
 function Dashboard({ user, token, onLogout }) {
-  const [activeSection, setActiveSection] = useState("voice");
-
-  const renderSection = () => {
-    switch (activeSection) {
-      case "voice":
-        return <AIChatVoice />;
-      case "mood":
-        return <MoodSuggest />;
-      case "period":
-        return <PeriodLogger />;
-      case "diary":
-        return <Diary />;
-      case "games":
-        return <GameSuggestions token={token} />;
-      case "books":
-        return <BookSuggestions token={token} />;
-      case "wellness":
-        return <WellnessPage token={token} />;
-      default:
-        return <AIChatVoice />;
-    }
-  };
+  const [activeSection, setActiveSection] = useState("voice"); // main tabs
+  const [suggestionTab, setSuggestionTab] = useState("mood"); // 'mood' | 'games' | 'books'
 
   const navButtonStyle = (isActive) => ({
     padding: "8px 14px",
@@ -42,6 +22,84 @@ function Dashboard({ user, token, onLogout }) {
     fontSize: 14,
     fontWeight: isActive ? 600 : 500,
   });
+
+  const subButtonStyle = (isActive) => ({
+    padding: "6px 12px",
+    borderRadius: 999,
+    border: "1px solid",
+    borderColor: isActive ? "#2563eb" : "#d1d5db",
+    backgroundColor: isActive ? "#2563eb" : "white",
+    color: isActive ? "white" : "#374151",
+    cursor: "pointer",
+    fontSize: 13,
+    fontWeight: isActive ? 600 : 500,
+  });
+
+  const renderSuggestionsSection = () => {
+    return (
+      <div>
+        {/* Sub-tabs: Mood / Book / Game */}
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            flexWrap: "wrap",
+            marginBottom: 12,
+          }}
+        >
+          <button
+            style={subButtonStyle(suggestionTab === "mood")}
+            onClick={() => setSuggestionTab("mood")}
+          >
+            Mood
+          </button>
+          <button
+            style={subButtonStyle(suggestionTab === "books")}
+            onClick={() => setSuggestionTab("books")}
+          >
+            Books
+          </button>
+          <button
+            style={subButtonStyle(suggestionTab === "games")}
+            onClick={() => setSuggestionTab("games")}
+          >
+            Games
+          </button>
+        </div>
+
+        {/* Content for selected suggestion type */}
+        <div
+          style={{
+            border: "1px solid #e5e7eb",
+            borderRadius: 12,
+            padding: 12,
+            backgroundColor: "#f9fafb",
+          }}
+        >
+          {suggestionTab === "mood" && <MoodSuggest />}
+          {suggestionTab === "books" && <BookSuggestions token={token} />}
+          {suggestionTab === "games" && <GameSuggestions token={token} />}
+        </div>
+      </div>
+    );
+  };
+
+  const renderSection = () => {
+    switch (activeSection) {
+      case "voice":
+        return <AIChatVoice />;
+      case "suggestions":
+        return renderSuggestionsSection();
+      case "period":
+        return <PeriodLogger />;
+      case "diary":
+        return <Diary />;
+      case "wellness":
+        return <WellnessPage token={token} />;
+      default:
+        return <AIChatVoice />;
+    }
+  };
 
   return (
     <div style={{ width: "100%", maxWidth: 980, margin: "0 auto" }}>
@@ -75,7 +133,7 @@ function Dashboard({ user, token, onLogout }) {
         </button>
       </div>
 
-      {/* Navigation Bar */}
+      {/* Main Navigation Bar */}
       <div
         style={{
           display: "flex",
@@ -91,10 +149,10 @@ function Dashboard({ user, token, onLogout }) {
           Voice AI Assistant
         </button>
         <button
-          style={navButtonStyle(activeSection === "mood")}
-          onClick={() => setActiveSection("mood")}
+          style={navButtonStyle(activeSection === "suggestions")}
+          onClick={() => setActiveSection("suggestions")}
         >
-          Mood Suggestions
+          Suggestions
         </button>
         <button
           style={navButtonStyle(activeSection === "period")}
@@ -107,18 +165,6 @@ function Dashboard({ user, token, onLogout }) {
           onClick={() => setActiveSection("diary")}
         >
           Personal Diary
-        </button>
-        <button
-          style={navButtonStyle(activeSection === "games")}
-          onClick={() => setActiveSection("games")}
-        >
-          Game Suggestions
-        </button>
-        <button
-          style={navButtonStyle(activeSection === "books")}
-          onClick={() => setActiveSection("books")}
-        >
-          Book Suggestions
         </button>
         <button
           style={navButtonStyle(activeSection === "wellness")}

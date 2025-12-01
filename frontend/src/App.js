@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import AuthForm from "./components/AuthForm";
 import Dashboard from "./components/dashboard";
+import "react-calendar/dist/Calendar.css";
 
 function App() {
   const [user, setUser] = useState(null);
