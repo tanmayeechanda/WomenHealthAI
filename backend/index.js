@@ -2,26 +2,51 @@ require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
+const path = require("path");
+const fs = require("fs");
+
+// Routes
 const resourcesRoutes = require("./routes/resources");
 const authRoutes = require("./routes/auth");
-const path = require("path");
-const wellnessRoutes = require("./routes/wellness"); // ✔ FIXED
+const wellnessRoutes = require("./routes/wellness");
+const aiRoutes = require("./routes/ai");
+const periodRoutes = require("./routes/period");
+const diaryRoutes = require("./routes/diary");
+const medicalRoutes = require("./routes/medical");
+const appointmentRoutes = require("./routes/appointments");
 
 const app = express();
 const PORT = process.env.PORT || 4000;
+
+// 🔹 Ensure upload folders exist (uploads, uploads/reports, uploads/ai-reports)
+const uploadsDir = path.join(__dirname, "uploads");
+const reportsDir = path.join(uploadsDir, "reports");
+const aiReportsDir = path.join(uploadsDir, "ai-reports");
+
+[uploadsDir, reportsDir, aiReportsDir].forEach((dir) => {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+    console.log("📁 Created folder:", dir);
+  }
+});
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 
-app.use("/api/ai", require("./routes/ai"));
-app.use("/api/period", require("./routes/period"));
-app.use("/api/diary", require("./routes/diary"));
-app.use("/api/auth", authRoutes); // ✔ keep only this one
-app.use("/api/wellness", wellnessRoutes); // ✔ fixed path
-app.use("/api/resources", resourcesRoutes);
-
+// 🔹 Serve uploaded files statically
+// e.g. http://localhost:4000/uploads/reports/<filename>
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+// API routes
+app.use("/api/auth", authRoutes);
+app.use("/api/resources", resourcesRoutes);
+app.use("/api/wellness", wellnessRoutes);
+app.use("/api/ai", aiRoutes); // mounted once, clean
+app.use("/api/period", periodRoutes);
+app.use("/api/diary", diaryRoutes);
+app.use("/api/medical", medicalRoutes);
+app.use("/api/appointments", appointmentRoutes);
 
 // Health check
 app.get("/", (req, res) => {
