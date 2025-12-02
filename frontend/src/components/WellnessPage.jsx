@@ -1,473 +1,518 @@
-// frontend/src/components/WellnessPage.jsx
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 
-const BASE_URL = "http://localhost:4000"; // make sure this matches your backend port
-
-const phaseLabels = {
-  menstrual: "Menstrual (bleeding days)",
-  follicular: "Follicular (energy rising)",
-  ovulatory: "Ovulatory (around ovulation)",
-  luteal: "Luteal (PMS / pre-period)",
-  unknown: "Unknown",
-};
+const API_BASE = "http://localhost:4000/api";
 
 function WellnessPage({ token }) {
-  const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [fileError, setFileError] = useState("");
-  const [fileUploading, setFileUploading] = useState(false);
+  const [reports, setReports] = useState([]);
+  const [reportForm, setReportForm] = useState({
+    title: "",
+    date: "",
+    doctorName: "",
+    hospital: "",
+    notes: "",
+  });
+  const [reportFile, setReportFile] = useState(null); // 🔹 file for medical report
 
-  // editable fields
-  const [dos, setDos] = useState("");
-  const [donts, setDonts] = useState("");
-  const [medicalConditions, setMedicalConditions] = useState("");
-  const [extraNotes, setExtraNotes] = useState("");
+  const [aiFile, setAiFile] = useState(null); // 🔹 file for AI explanation
+  const [reportExplanation, setReportExplanation] = useState("");
 
-  const [nextAppointmentDate, setNextAppointmentDate] = useState("");
-  const [nextAppointmentDoctor, setNextAppointmentDoctor] = useState("");
-  const [nextAppointmentLocation, setNextAppointmentLocation] = useState("");
-  const [nextAppointmentNotes, setNextAppointmentNotes] = useState("");
+  const [doctorIssue, setDoctorIssue] = useState("");
+  const [doctorCity, setDoctorCity] = useState("");
+  const [doctorSuggestion, setDoctorSuggestion] = useState(null);
 
-  // load wellness profile
+  const [remedySymptom, setRemedySymptom] = useState("");
+  const [remedyPhase, setRemedyPhase] = useState("period");
+  const [remedyResult, setRemedyResult] = useState(null);
+
+  const [apptForm, setApptForm] = useState({
+    doctorName: "",
+    specialty: "",
+    location: "",
+    dateTime: "",
+  });
+  const [nextAppt, setNextAppt] = useState(null);
+
+  // 🔹 Fetch reports (memoized to fix the React hook warning)
+  const fetchReports = useCallback(async () => {
+    if (!token) return;
+    const res = await fetch(`${API_BASE}/medical/reports`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    setReports(data);
+  }, [token]);
+
+  // 🔹 Fetch next appointment (also memoized)
+  const fetchNextAppt = useCallback(async () => {
+    if (!token) return;
+    const res = await fetch(`${API_BASE}/appointments/next`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    setNextAppt(data);
+  }, [token]);
+
+  // 🔹 useEffect now depends on the memoized functions → no lint error on [token]
   useEffect(() => {
-    if (!token) {
-      setError("You must be logged in to view your wellness page.");
-      setLoading(false);
+    if (!token) return;
+    fetchReports();
+    fetchNextAppt();
+  }, [token, fetchReports, fetchNextAppt]);
+
+  // 🔹 Upload & save medical report (with file)
+  async function handleReportSubmit(e) {
+    e.preventDefault();
+
+    if (!reportFile) {
+      alert("Please upload a report file.");
       return;
     }
 
-    fetch(`${BASE_URL}/api/wellness/me`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(async (res) => {
-        const text = await res.text();
-        if (!res.ok) {
-          let message = "Failed to load wellness data";
-          try {
-            const json = JSON.parse(text);
-            if (json.error) message = json.error;
-          } catch {}
-          throw new Error(message);
-        }
-        return text ? JSON.parse(text) : null;
-      })
-      .then((data) => {
-        if (data) {
-          setProfile(data);
-          setDos(data.dos || "");
-          setDonts(data.donts || "");
-          setMedicalConditions(data.medicalConditions || "");
-          setExtraNotes(data.extraNotes || "");
+    const formData = new FormData();
+    formData.append("title", reportForm.title);
+    formData.append("date", reportForm.date);
+    formData.append("doctorName", reportForm.doctorName);
+    formData.append("hospital", reportForm.hospital);
+    formData.append("notes", reportForm.notes);
+    formData.append("file", reportFile); // MUST be "file" for backend multer
 
-          if (data.nextAppointmentDate) {
-            const d = new Date(data.nextAppointmentDate);
-            setNextAppointmentDate(d.toISOString().slice(0, 10));
-          }
-          setNextAppointmentDoctor(data.nextAppointmentDoctor || "");
-          setNextAppointmentLocation(data.nextAppointmentLocation || "");
-          setNextAppointmentNotes(data.nextAppointmentNotes || "");
-        }
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error("Wellness load error:", err);
-        setError(err.message || "Could not load your wellness info.");
-        setLoading(false);
-      });
-  }, [token]);
-
-  const handleSave = (e) => {
-    e.preventDefault();
-    if (!token) return;
-
-    setSaving(true);
-    setError("");
-
-    const body = {
-      dos,
-      donts,
-      medicalConditions,
-      extraNotes,
-      nextAppointmentDate: nextAppointmentDate || null,
-      nextAppointmentDoctor,
-      nextAppointmentLocation,
-      nextAppointmentNotes,
-    };
-
-    fetch(`${BASE_URL}/api/wellness`, {
+    const res = await fetch(`${API_BASE}/medical/report`, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${token}`, // DO NOT set Content-Type manually
       },
-      body: JSON.stringify(body),
-    })
-      .then(async (res) => {
-        const text = await res.text();
-        if (!res.ok) {
-          let message = "Failed to save wellness info";
-          try {
-            const json = JSON.parse(text);
-            if (json.error) message = json.error;
-          } catch {}
-          throw new Error(message);
-        }
-        return JSON.parse(text);
-      })
-      .then((data) => {
-        setProfile(data);
-      })
-      .catch((err) => {
-        console.error("Wellness save error:", err);
-        setError(err.message || "Could not save your wellness info.");
-      })
-      .finally(() => setSaving(false));
-  };
+      body: formData,
+    });
 
-  const handleFileUpload = (e) => {
-    const file = e.target.files?.[0];
-    if (!file || !token) return;
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error || "Error saving report");
+      return;
+    }
 
-    setFileError("");
-    setFileUploading(true);
+    setReportForm({
+      title: "",
+      date: "",
+      doctorName: "",
+      hospital: "",
+      notes: "",
+    });
+    setReportFile(null);
+    fetchReports();
+  }
+
+  // 🔹 AI explanation from FILE only (no text input)
+  async function handleExplainReport() {
+    if (!aiFile) {
+      alert("Please upload a report file for AI to explain.");
+      return;
+    }
 
     const formData = new FormData();
-    formData.append("file", file);
+    formData.append("file", aiFile);
 
-    fetch(`${BASE_URL}/api/wellness/report`, {
+    const res = await fetch(`${API_BASE}/ai/report-explain-file`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
       },
       body: formData,
-    })
-      .then(async (res) => {
-        const text = await res.text();
-        if (!res.ok) {
-          let message = "Failed to upload report";
-          try {
-            const json = JSON.parse(text);
-            if (json.error) message = json.error;
-          } catch {}
-          throw new Error(message);
-        }
-        return JSON.parse(text);
-      })
-      .then((data) => {
-        setProfile(data);
-      })
-      .catch((err) => {
-        console.error("Report upload error:", err);
-        setFileError(err.message || "Could not upload this file.");
-      })
-      .finally(() => setFileUploading(false));
-  };
+    });
 
-  if (loading) return <p>Loading your wellness page…</p>;
-  if (error) return <p style={{ color: "red" }}>{error}</p>;
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error || "Error explaining report");
+      return;
+    }
+    setReportExplanation(data.explanation);
+  }
 
-  const reports = profile?.medicalReports || [];
-  const cycleDay = profile?.cycleDay;
-  const phase = profile?.currentCyclePhase || "unknown";
-  const inPeriodNow = profile?.inPeriodNow;
-  const reminder = profile?.appointmentReminder;
+  async function handleDoctorSuggest() {
+    const res = await fetch(`${API_BASE}/ai/doctor-suggest`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ mainIssue: doctorIssue, city: doctorCity }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error || "Error suggesting doctor");
+      return;
+    }
+    setDoctorSuggestion(data);
+  }
+
+  async function handleRemedySuggest() {
+    const res = await fetch(`${API_BASE}/ai/remedy-suggest`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ symptom: remedySymptom, cyclePhase: remedyPhase }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error || "Error fetching remedies");
+      return;
+    }
+    setRemedyResult(data);
+  }
+
+  async function handleApptSubmit(e) {
+    e.preventDefault();
+    const res = await fetch(`${API_BASE}/appointments`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(apptForm),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error || "Error saving appointment");
+      return;
+    }
+    setApptForm({ doctorName: "", specialty: "", location: "", dateTime: "" });
+    fetchNextAppt();
+    alert("Appointment saved!");
+  }
+
+  // base URL for viewing files (since backend serves /uploads from 4000)
+  const FILE_BASE = "http://localhost:4000";
 
   return (
-    <div>
-      <h2 style={{ marginTop: 0, marginBottom: 8 }}>Personal Wellness 🌸</h2>
-      <p style={{ color: "#6b7280", marginBottom: 16, fontSize: 14 }}>
-        Your private health hub: cycle overview, your own rules, medical
-        history, appointments and reports.
-      </p>
-
-      {/* Appointment reminder banner */}
-      {reminder && (
-        <div
-          style={{
-            marginBottom: 16,
-            padding: 12,
-            borderRadius: 12,
-            backgroundColor: "#fef3c7",
-            border: "1px solid #fbbf24",
-            fontSize: 14,
-          }}
-        >
-          <strong>Doctor reminder: </strong>
-          {reminder.message}
+    <div style={{ display: "grid", gap: 16 }}>
+      {/* Next appointment banner */}
+      <div
+        style={{
+          padding: 12,
+          borderRadius: 12,
+          background: "#eff6ff",
+          border: "1px solid #bfdbfe",
+          fontSize: 14,
+        }}
+      >
+        <strong>Next appointment: </strong>
+        {nextAppt ? (
+          <>
+            {nextAppt.doctorName} on{" "}
+            {new Date(nextAppt.dateTime).toLocaleString()} (
+            {nextAppt.specialty || "Doctor"})
+          </>
+        ) : (
+          "No upcoming appointment saved."
+        )}
+        <div style={{ fontSize: 12, marginTop: 4 }}>
+          Remember: this app cannot replace a doctor. Always follow medical
+          advice.
         </div>
-      )}
+      </div>
 
-      {/* Cycle overview */}
+      {/* 1. Upload / save medical reports (with file) */}
       <section
         style={{
-          marginBottom: 20,
           padding: 12,
           borderRadius: 12,
           border: "1px solid #e5e7eb",
-          backgroundColor: "#f9fafb",
+          background: "#f9fafb",
         }}
       >
-        <h3 style={{ marginTop: 0, marginBottom: 8 }}>Cycle overview 🩸</h3>
-        <p style={{ margin: 0, fontSize: 14 }}>
-          <strong>Current phase:</strong> {phaseLabels[phase] || "Unknown"}
-        </p>
-        <p style={{ margin: "4px 0", fontSize: 14 }}>
-          <strong>Cycle day:</strong> {cycleDay || "Not sure"}
-        </p>
-        <p style={{ margin: 0, fontSize: 14 }}>
-          <strong>Currently on period:</strong>{" "}
-          {inPeriodNow ? "Yes" : "No / Not detected"}
-        </p>
-        <p style={{ marginTop: 8, fontSize: 12, color: "#6b7280" }}>
-          These are auto-guessed from your period logs. Update your periods
-          regularly in the Period Logger for better accuracy.
-        </p>
+        <h3>Medical reports</h3>
+        <form
+          onSubmit={handleReportSubmit}
+          style={{ display: "grid", gap: 8, marginBottom: 12 }}
+        >
+          <input
+            type="text"
+            placeholder="Report title (e.g. Blood Test Jan 2025)"
+            value={reportForm.title}
+            onChange={(e) =>
+              setReportForm({ ...reportForm, title: e.target.value })
+            }
+          />
+          <input
+            type="date"
+            value={reportForm.date}
+            onChange={(e) =>
+              setReportForm({ ...reportForm, date: e.target.value })
+            }
+          />
+          <input
+            type="text"
+            placeholder="Doctor name"
+            value={reportForm.doctorName}
+            onChange={(e) =>
+              setReportForm({ ...reportForm, doctorName: e.target.value })
+            }
+          />
+          <input
+            type="text"
+            placeholder="Hospital/clinic"
+            value={reportForm.hospital}
+            onChange={(e) =>
+              setReportForm({ ...reportForm, hospital: e.target.value })
+            }
+          />
+          <textarea
+            rows={3}
+            placeholder="Notes / what doctor said (optional)"
+            value={reportForm.notes}
+            onChange={(e) =>
+              setReportForm({ ...reportForm, notes: e.target.value })
+            }
+          />
+          {/* 🔹 File input for the actual report */}
+          <input
+            type="file"
+            accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+            onChange={(e) => setReportFile(e.target.files[0] || null)}
+          />
+          <button
+            type="submit"
+            disabled={!reportForm.title || !reportForm.date || !reportFile}
+          >
+            Save report
+          </button>
+        </form>
+
+        <div>
+          <h4>Saved reports</h4>
+          {reports.length === 0 && (
+            <p style={{ fontSize: 13 }}>No reports saved yet.</p>
+          )}
+          {reports.map((r) => (
+            <div
+              key={r._id}
+              style={{
+                padding: 8,
+                borderRadius: 8,
+                border: "1px solid #e5e7eb",
+                marginBottom: 8,
+                background: "white",
+              }}
+            >
+              <div style={{ fontWeight: 600 }}>{r.title}</div>
+              <div style={{ fontSize: 12, color: "#6b7280" }}>
+                {new Date(r.date).toLocaleDateString()}{" "}
+                {r.doctorName && `· Dr. ${r.doctorName}`}
+              </div>
+              {r.hospital && (
+                <div style={{ fontSize: 12, color: "#6b7280" }}>
+                  {r.hospital}
+                </div>
+              )}
+              {r.notes && <div style={{ marginTop: 4 }}>{r.notes}</div>}
+              {/* 🔹 Link to view file if backend returns filePath */}
+              {r.filePath && (
+                <div style={{ marginTop: 4 }}>
+                  <a
+                    href={`${FILE_BASE}${r.filePath}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ fontSize: 12, color: "#2563eb" }}
+                  >
+                    View report file
+                  </a>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       </section>
 
-      {/* Form: personal rules + medical history + appointment */}
-      <form onSubmit={handleSave} style={{ display: "grid", gap: 16 }}>
-        {/* Do's & Don'ts */}
-        <section>
-          <h3 style={{ marginTop: 0, marginBottom: 8 }}>
-            My personal rules ✅❌
-          </h3>
-          <div style={{ marginBottom: 8 }}>
-            <label style={{ fontSize: 14, fontWeight: 600 }}>
-              My do&apos;s
-            </label>
-            <textarea
-              value={dos}
-              onChange={(e) => setDos(e.target.value)}
-              rows={3}
-              placeholder="e.g., warm water, light walks, sleep early, gentle stretching…"
-              style={{
-                marginTop: 4,
-                width: "100%",
-                padding: 8,
-                borderRadius: 8,
-                border: "1px solid #d1d5db",
-                resize: "vertical",
-              }}
-            />
-          </div>
-
-          <div>
-            <label style={{ fontSize: 14, fontWeight: 600 }}>
-              My don&apos;ts
-            </label>
-            <textarea
-              value={donts}
-              onChange={(e) => setDonts(e.target.value)}
-              rows={3}
-              placeholder="e.g., heavy workouts on day 1–2, too much caffeine, skipping meals…"
-              style={{
-                marginTop: 4,
-                width: "100%",
-                padding: 8,
-                borderRadius: 8,
-                border: "1px solid #d1d5db",
-                resize: "vertical",
-              }}
-            />
-          </div>
-        </section>
-
-        {/* Medical history + appointment */}
-        <section>
-          <h3 style={{ marginTop: 0, marginBottom: 8 }}>Medical history 🩺</h3>
-          <div style={{ marginBottom: 8 }}>
-            <label style={{ fontSize: 14, fontWeight: 600 }}>
-              Conditions / notes for doctor
-            </label>
-            <textarea
-              value={medicalConditions}
-              onChange={(e) => setMedicalConditions(e.target.value)}
-              rows={3}
-              placeholder="e.g., PCOS, endometriosis, anemia, migraines, allergies, medications…"
-              style={{
-                marginTop: 4,
-                width: "100%",
-                padding: 8,
-                borderRadius: 8,
-                border: "1px solid #d1d5db",
-                resize: "vertical",
-              }}
-            />
-          </div>
-
-          <div style={{ marginBottom: 8 }}>
-            <label style={{ fontSize: 14, fontWeight: 600 }}>
-              Extra notes to myself
-            </label>
-            <textarea
-              value={extraNotes}
-              onChange={(e) => setExtraNotes(e.target.value)}
-              rows={3}
-              placeholder="Anything else about your body, triggers, patterns you notice…"
-              style={{
-                marginTop: 4,
-                width: "100%",
-                padding: 8,
-                borderRadius: 8,
-                border: "1px solid #d1d5db",
-                resize: "vertical",
-              }}
-            />
-          </div>
-
-          <h4 style={{ marginTop: 12, marginBottom: 4 }}>
-            Next doctor appointment 📅
-          </h4>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: 8,
-              marginBottom: 8,
-            }}
-          >
-            <div>
-              <label style={{ fontSize: 14 }}>Date</label>
-              <input
-                type="date"
-                value={nextAppointmentDate}
-                onChange={(e) => setNextAppointmentDate(e.target.value)}
-                style={{
-                  marginTop: 4,
-                  width: "100%",
-                  padding: 8,
-                  borderRadius: 8,
-                  border: "1px solid #d1d5db",
-                }}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: 14 }}>Doctor / Department</label>
-              <input
-                type="text"
-                value={nextAppointmentDoctor}
-                onChange={(e) => setNextAppointmentDoctor(e.target.value)}
-                placeholder="e.g., Dr. Sharma – Gynecologist"
-                style={{
-                  marginTop: 4,
-                  width: "100%",
-                  padding: 8,
-                  borderRadius: 8,
-                  border: "1px solid #d1d5db",
-                }}
-              />
-            </div>
-          </div>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr",
-              gap: 8,
-              marginBottom: 8,
-            }}
-          >
-            <div>
-              <label style={{ fontSize: 14 }}>Hospital / Clinic</label>
-              <input
-                type="text"
-                value={nextAppointmentLocation}
-                onChange={(e) => setNextAppointmentLocation(e.target.value)}
-                placeholder="e.g., Apollo Hospital, Vijayawada"
-                style={{
-                  marginTop: 4,
-                  width: "100%",
-                  padding: 8,
-                  borderRadius: 8,
-                  border: "1px solid #d1d5db",
-                }}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: 14 }}>Notes</label>
-              <textarea
-                value={nextAppointmentNotes}
-                onChange={(e) => setNextAppointmentNotes(e.target.value)}
-                rows={2}
-                placeholder="e.g., ask about cramps on day 2, check iron levels…"
-                style={{
-                  marginTop: 4,
-                  width: "100%",
-                  padding: 8,
-                  borderRadius: 8,
-                  border: "1px solid #d1d5db",
-                  resize: "vertical",
-                }}
-              />
-            </div>
-          </div>
-
-          <p style={{ fontSize: 12, color: "#6b7280" }}>
-            The app will gently remind you in the week before your appointment,
-            up to two times, when you visit this page.
-          </p>
-        </section>
-
-        <button
-          type="submit"
-          disabled={saving}
-          style={{
-            marginTop: 4,
-            alignSelf: "flex-start",
-            padding: "8px 16px",
-            borderRadius: 999,
-            border: "1px solid #ec4899",
-            backgroundColor: saving ? "#f9a8d4" : "#ec4899",
-            color: "white",
-            cursor: saving ? "default" : "pointer",
-          }}
-        >
-          {saving ? "Saving..." : "Save wellness info"}
-        </button>
-      </form>
-
-      {/* Reports separate section */}
-      <section style={{ marginTop: 24 }}>
-        <h3 style={{ marginBottom: 8 }}>Medical reports 📁</h3>
-        <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 8 }}>
-          Upload lab reports, ultrasound results, prescriptions you want to keep
-          handy. Only you can see these.
+      {/* 2. Understand report (AI explanation via FILE) */}
+      <section
+        style={{
+          padding: 12,
+          borderRadius: 12,
+          border: "1px solid #e5e7eb",
+          background: "#f9fafb",
+        }}
+      >
+        <h3>Understand your report (AI explanation)</h3>
+        <p style={{ fontSize: 13, color: "#6b7280" }}>
+          Upload a medical report file (PDF, image, or document). The AI will
+          try to explain it in simple language, but{" "}
+          <strong>cannot diagnose</strong>.
         </p>
 
         <input
           type="file"
-          onChange={handleFileUpload}
-          disabled={fileUploading}
+          accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+          onChange={(e) => setAiFile(e.target.files[0] || null)}
           style={{ marginBottom: 8 }}
         />
-        {fileUploading && <p style={{ fontSize: 13 }}>Uploading report…</p>}
-        {fileError && <p style={{ color: "red", fontSize: 13 }}>{fileError}</p>}
 
-        {reports.length > 0 ? (
-          <ul style={{ marginTop: 8, paddingLeft: 16 }}>
-            {reports.map((r, idx) => (
-              <li key={idx} style={{ fontSize: 13, marginBottom: 4 }}>
-                <a
-                  href={`${BASE_URL}${r.url}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ color: "#ec4899", textDecoration: "none" }}
-                >
-                  {r.originalName || r.filename}
-                </a>{" "}
-                <span style={{ color: "#9ca3af" }}>
-                  ({new Date(r.uploadedAt).toLocaleDateString()})
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p style={{ fontSize: 13, color: "#6b7280" }}>
-            No reports uploaded yet.
-          </p>
+        <button onClick={handleExplainReport} disabled={!aiFile}>
+          Explain my report
+        </button>
+
+        {reportExplanation && (
+          <pre
+            style={{
+              whiteSpace: "pre-wrap",
+              marginTop: 8,
+              padding: 8,
+              borderRadius: 8,
+              background: "white",
+              border: "1px solid #e5e7eb",
+              fontSize: 13,
+            }}
+          >
+            {reportExplanation}
+          </pre>
         )}
+      </section>
+
+      {/* 3. Doctor suggestions */}
+      <section
+        style={{
+          padding: 12,
+          borderRadius: 12,
+          border: "1px solid #e5e7eb",
+          background: "#f9fafb",
+        }}
+      >
+        <h3>Find the right type of doctor</h3>
+        <input
+          type="text"
+          placeholder="Describe your main issue (e.g. heavy periods, PCOS, anxiety)"
+          value={doctorIssue}
+          onChange={(e) => setDoctorIssue(e.target.value)}
+          style={{ width: "100%", marginBottom: 8 }}
+        />
+        <input
+          type="text"
+          placeholder="Your city (optional)"
+          value={doctorCity}
+          onChange={(e) => setDoctorCity(e.target.value)}
+          style={{ width: "100%", marginBottom: 8 }}
+        />
+        <button onClick={handleDoctorSuggest} disabled={!doctorIssue.trim()}>
+          Suggest doctor type
+        </button>
+        {doctorSuggestion && (
+          <div
+            style={{
+              marginTop: 8,
+              padding: 8,
+              borderRadius: 8,
+              background: "white",
+              border: "1px solid #e5e7eb",
+              fontSize: 13,
+            }}
+          >
+            <div>
+              <strong>Suggested specialty:</strong> {doctorSuggestion.specialty}
+            </div>
+            <p style={{ marginTop: 4 }}>{doctorSuggestion.message}</p>
+          </div>
+        )}
+      </section>
+
+      {/* 4. Natural remedies with caution */}
+      <section
+        style={{
+          padding: 12,
+          borderRadius: 12,
+          border: "1px solid #e5e7eb",
+          background: "#f9fafb",
+        }}
+      >
+        <h3>Comfort suggestions (not a cure)</h3>
+        <input
+          type="text"
+          placeholder="Symptom (e.g. cramps, bloating, low mood)"
+          value={remedySymptom}
+          onChange={(e) => setRemedySymptom(e.target.value)}
+          style={{ width: "100%", marginBottom: 8 }}
+        />
+        <select
+          value={remedyPhase}
+          onChange={(e) => setRemedyPhase(e.target.value)}
+          style={{ marginBottom: 8 }}
+        >
+          <option value="period">On period</option>
+          <option value="follicular">Follicular phase</option>
+          <option value="ovulation">Ovulation</option>
+          <option value="luteal">Luteal (PMS)</option>
+        </select>
+        <button onClick={handleRemedySuggest} disabled={!remedySymptom.trim()}>
+          Get comfort tips
+        </button>
+        {remedyResult && (
+          <div
+            style={{
+              marginTop: 8,
+              padding: 8,
+              borderRadius: 8,
+              background: "white",
+              border: "1px solid #e5e7eb",
+              fontSize: 13,
+            }}
+          >
+            <ul>
+              {remedyResult.tips?.map((t, i) => (
+                <li key={i}>{t}</li>
+              ))}
+            </ul>
+            <p style={{ fontSize: 12, color: "#b91c1c" }}>
+              {remedyResult.warning}
+            </p>
+          </div>
+        )}
+      </section>
+
+      {/* 5. Schedule next appointment */}
+      <section
+        style={{
+          padding: 12,
+          borderRadius: 12,
+          border: "1px solid #e5e7eb",
+          background: "#f9fafb",
+        }}
+      >
+        <h3>Schedule your next appointment</h3>
+        <form onSubmit={handleApptSubmit} style={{ display: "grid", gap: 8 }}>
+          <input
+            type="text"
+            placeholder="Doctor name"
+            value={apptForm.doctorName}
+            onChange={(e) =>
+              setApptForm({ ...apptForm, doctorName: e.target.value })
+            }
+          />
+          <input
+            type="text"
+            placeholder="Specialty (e.g. Gynecologist)"
+            value={apptForm.specialty}
+            onChange={(e) =>
+              setApptForm({ ...apptForm, specialty: e.target.value })
+            }
+          />
+          <input
+            type="text"
+            placeholder="Location / hospital"
+            value={apptForm.location}
+            onChange={(e) =>
+              setApptForm({ ...apptForm, location: e.target.value })
+            }
+          />
+          <input
+            type="datetime-local"
+            value={apptForm.dateTime}
+            onChange={(e) =>
+              setApptForm({ ...apptForm, dateTime: e.target.value })
+            }
+          />
+          <button type="submit">Save appointment</button>
+        </form>
       </section>
     </div>
   );
