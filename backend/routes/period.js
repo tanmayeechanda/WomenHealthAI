@@ -123,4 +123,39 @@ router.get("/history", requireAuth, async (req, res) => {
   }
 });
 
+/* ============================================================
+   Get current cycle phase (approx)
+   GET /api/period/current-phase
+============================================================ */
+router.get("/current-phase", requireAuth, async (req, res) => {
+  try {
+    // Get latest period start; adjust field names if your model differs
+    const last = await PeriodEntry.findOne({ user: req.user._id })
+      .sort({ startDate: -1, date: -1 })
+      .lean();
+
+    if (!last) {
+      return res.json({ phase: "unknown", daysSinceStart: null });
+    }
+
+    const start = last.startDate || last.date || last.createdAt || new Date();
+
+    const now = new Date();
+    const diffMs = now - new Date(start);
+    const daysSinceStart = Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1;
+
+    let phase = "unknown";
+    // very simple 28-day assumption
+    if (daysSinceStart <= 5) phase = "period";
+    else if (daysSinceStart <= 12) phase = "follicular";
+    else if (daysSinceStart <= 16) phase = "ovulation";
+    else if (daysSinceStart <= 28) phase = "luteal";
+
+    return res.json({ phase, daysSinceStart });
+  } catch (err) {
+    console.error("Current phase error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 module.exports = router;

@@ -4,21 +4,31 @@ import React, { useState, useEffect, useRef } from "react";
 const API_BASE = "http://localhost:4000/api";
 
 export default function AIChatVoice() {
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState([
+    {
+      role: "assistant",
+      content:
+        "Hi love, I’m your wellness voice assistant. 💜 You can talk to me like a friend, or ask me to do things for you.",
+    },
+    {
+      role: "assistant",
+      content:
+        "For example, you can say things like:\n• “Fix an appointment with Dr Sricharan on 11 December 2025 at 12 pm”\n• “Write in my diary that I felt very anxious in class today”\n• “Which doctor should I see for heavy periods in Hyderabad?”\n• “My period started today”\n• “I feel very low and lonely today”",
+    },
+  ]);
   const [listening, setListening] = useState(false);
   const [typing, setTyping] = useState(false);
-  const [pendingText, setPendingText] = useState(""); // 👈 recognized text you can edit
+  const [pendingText, setPendingText] = useState(""); // recognized text (editable)
 
   const recognitionRef = useRef(null);
 
-  /* --------------------------------------------------
-     TEXT-TO-SPEECH
-  -------------------------------------------------- */
+  /* ---------------- TEXT TO SPEECH ---------------- */
   function speak(text) {
     try {
+      if (typeof window === "undefined" || !window.speechSynthesis) return;
       window.speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text);
-      u.lang = "en-US";
+      u.lang = "en-IN";
       u.rate = 0.95;
       u.pitch = 1;
       window.speechSynthesis.speak(u);
@@ -27,9 +37,7 @@ export default function AIChatVoice() {
     }
   }
 
-  /* --------------------------------------------------
-     SEND FINAL (CONFIRMED) TEXT TO AI
-  -------------------------------------------------- */
+  /* ------------- SEND CONFIRMED TEXT TO AI -------- */
   async function sendToAI(text) {
     if (!text.trim()) return;
 
@@ -47,47 +55,60 @@ export default function AIChatVoice() {
       });
 
       const data = await res.json();
-      const reply = data.text || "I'm here for you.";
 
+      if (!res.ok) {
+        const fallback =
+          data.error || "Something went wrong while talking to me.";
+        setMessages((m) => [...m, { role: "assistant", content: fallback }]);
+        speak(fallback);
+        return;
+      }
+
+      const reply = data.text || "I'm here for you.";
       setMessages((m) => [...m, { role: "assistant", content: reply }]);
       speak(reply);
+
+      // 🔹 If you ever want, you can also use data.intent here
+      // e.g. data.intent?.type === "appointment_created"
+      // For now, reply text already explains what happened.
     } catch (err) {
       console.log("AI error:", err);
-      speak("I couldn't reach the server.");
+      const fallback =
+        "I couldn't reach the server right now, but I'm still here to listen.";
+      setMessages((m) => [...m, { role: "assistant", content: fallback }]);
+      speak(fallback);
     } finally {
       setTyping(false);
     }
   }
 
-  /* --------------------------------------------------
-     HANDLE "SEND" BUTTON FOR PENDING TEXT
-  -------------------------------------------------- */
+  /* --------------- HANDLE SEND BUTTON -------------- */
   async function handleSendPending() {
     const text = pendingText.trim();
     if (!text) return;
 
-    // show user message in chat
+    // show in chat as user message
     setMessages((m) => [...m, { role: "user", content: text }]);
-    setPendingText(""); // clear edit box
+    setPendingText("");
 
     await sendToAI(text);
   }
 
-  /* --------------------------------------------------
-     INIT SPEECH RECOGNITION (RUNS ONCE)
-  -------------------------------------------------- */
+  /* --------------- INIT SPEECH RECOGNITION --------- */
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 
     if (!SR) {
-      alert("Speech Recognition is not supported in this browser.");
+      console.warn("Speech Recognition is not supported in this browser.");
       return;
     }
 
     const recog = new SR();
-    recog.lang = "en-IN";
+    recog.lang = "en-IN"; // try also "en-US" or "hi-IN" if you want
     recog.continuous = false; // one utterance per click
-    recog.interimResults = true; // to gather full final result
+    recog.interimResults = true; // we gather final transcript at the end
     recog.maxAlternatives = 1;
 
     recog.onstart = () => {
@@ -105,13 +126,12 @@ export default function AIChatVoice() {
       setListening(false);
 
       if (e.error === "no-speech") {
-        setPendingText("");
         setMessages((m) => [
           ...m,
           {
             role: "assistant",
             content:
-              "I couldn't hear anything. Please speak a bit louder or closer to the mic.",
+              "I couldn't hear anything that time. Try speaking a little closer or louder, or you can type instead.",
           },
         ]);
       }
@@ -127,15 +147,13 @@ export default function AIChatVoice() {
       }
 
       const text = finalTranscript.trim();
-
       if (!text) {
-        console.log("No final transcript.");
+        console.log("No final transcript (only interim or silence).");
         return;
       }
 
       console.log("✅ Recognized:", text);
-
-      // 👉 Don't send to AI yet; show it in editable box
+      // show in editable box instead of sending directly
       setPendingText(text);
     };
 
@@ -146,17 +164,22 @@ export default function AIChatVoice() {
         recog.stop();
       } catch {}
     };
-  }, []); // no deps → no hook warnings
+  }, []); // runs once
 
-  /* --------------------------------------------------
-     START LISTENING (BUTTON)
-  -------------------------------------------------- */
+  /* ----------------- START LISTENING BUTTON -------- */
   function startListening() {
     const recog = recognitionRef.current;
-    if (!recog) return;
+    if (!recog) {
+      alert(
+        "Speech recognition is not available in this browser. Try using Chrome on desktop."
+      );
+      return;
+    }
 
     try {
-      window.speechSynthesis.cancel();
+      if (typeof window !== "undefined" && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
       try {
         recog.stop();
       } catch {}
@@ -170,9 +193,7 @@ export default function AIChatVoice() {
     }
   }
 
-  /* --------------------------------------------------
-     UI
-  -------------------------------------------------- */
+  /* --------------------------- UI ------------------- */
   return (
     <div
       style={{
@@ -193,7 +214,7 @@ export default function AIChatVoice() {
         💜 Wellness Voice Assistant
       </h2>
 
-      {/* CHAT WINDOW */}
+      {/* Chat window */}
       <div
         style={{
           height: 260,
@@ -222,6 +243,7 @@ export default function AIChatVoice() {
                 maxWidth: "75%",
                 boxShadow: "0 2px 6px rgba(0,0,0,0.12)",
                 fontSize: 14,
+                whiteSpace: "pre-wrap",
               }}
             >
               {m.content}
@@ -245,7 +267,7 @@ export default function AIChatVoice() {
         )}
       </div>
 
-      {/* RECOGNIZED TEXT EDIT BOX */}
+      {/* Recognized text editor */}
       {pendingText && (
         <div
           style={{
@@ -264,7 +286,7 @@ export default function AIChatVoice() {
               fontWeight: 500,
             }}
           >
-            Recognized text (you can edit):
+            Recognized text (you can edit before sending):
           </div>
           <textarea
             value={pendingText}
@@ -320,7 +342,7 @@ export default function AIChatVoice() {
         </div>
       )}
 
-      {/* MIC BUTTON */}
+      {/* Mic button */}
       <div style={{ textAlign: "center", marginTop: 18 }}>
         <button
           onClick={startListening}
@@ -350,7 +372,42 @@ export default function AIChatVoice() {
         </button>
       </div>
 
-      {/* ANIMATIONS */}
+      {/* How to talk to her (text hints, in case mic fails) */}
+      <div
+        style={{
+          marginTop: 12,
+          fontSize: 12,
+          color: "#6b7280",
+          background: "#eff6ff",
+          padding: 8,
+          borderRadius: 10,
+        }}
+      >
+        <div style={{ fontWeight: 600, marginBottom: 4 }}>
+          You can say things like:
+        </div>
+        <ul style={{ paddingLeft: 18, margin: 0, display: "grid", gap: 2 }}>
+          <li>
+            <strong>Appointment:</strong> “Fix an appointment with Dr Sricharan
+            on 11 December 2025 at 12 pm”
+          </li>
+          <li>
+            <strong>Diary:</strong> “Write in my diary that I felt very anxious
+            in class today”
+          </li>
+          <li>
+            <strong>Doctor type:</strong> “Which doctor should I see for heavy
+            periods in Hyderabad?”
+          </li>
+          <li>
+            <strong>Periods:</strong> “My period started today”
+          </li>
+          <li>
+            <strong>Emotional:</strong> “I feel really low and lonely today”
+          </li>
+        </ul>
+      </div>
+
       <style>
         {`
           @keyframes pulse {

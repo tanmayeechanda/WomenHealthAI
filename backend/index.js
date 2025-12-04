@@ -22,6 +22,7 @@ const PORT = process.env.PORT || 4000;
 const uploadsDir = path.join(__dirname, "uploads");
 const reportsDir = path.join(uploadsDir, "reports");
 const aiReportsDir = path.join(uploadsDir, "ai-reports");
+const symptomRoutes = require("./routes/symptoms");
 
 [uploadsDir, reportsDir, aiReportsDir].forEach((dir) => {
   if (!fs.existsSync(dir)) {
@@ -47,6 +48,7 @@ app.use("/api/period", periodRoutes);
 app.use("/api/diary", diaryRoutes);
 app.use("/api/medical", medicalRoutes);
 app.use("/api/appointments", appointmentRoutes);
+app.use("/api/symptoms", symptomRoutes);
 
 // Health check
 app.get("/", (req, res) => {
