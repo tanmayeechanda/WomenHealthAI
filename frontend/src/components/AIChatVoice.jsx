@@ -198,7 +198,7 @@ export default function AIChatVoice() {
     <div
       style={{
         padding: 20,
-        maxWidth: 420,
+        maxWidth: 800,
         margin: "0 auto",
         fontFamily: "Poppins, system-ui, sans-serif",
       }}

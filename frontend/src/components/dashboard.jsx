@@ -113,7 +113,9 @@ function Dashboard({ user, token, onLogout }) {
         }}
       >
         <div>
-          <h1 style={{ margin: 0 }}>Welcome back 👋</h1>
+          <h1 style={{ margin: 0 }}>
+            Welcome to your Personal Assistant Dashboard
+          </h1>
           <p style={{ color: "#6b7280", marginTop: 4 }}>
             {user?.email ? `Logged in as ${user.email}` : "You are logged in."}
           </p>
