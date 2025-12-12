@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { GoogleLogin } from "@react-oauth/google";
 
 const API_BASE = "http://localhost:4000/api";
 
@@ -9,6 +10,10 @@ function AuthForm({ onAuthSuccess }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [status, setStatus] = useState("");
+
+  // For reset password
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetStatus, setResetStatus] = useState("");
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -40,13 +45,89 @@ function AuthForm({ onAuthSuccess }) {
 
       if (data.token) {
         localStorage.setItem("token", data.token);
-        onAuthSuccess(data.token, data.user || null);
+        if (typeof onAuthSuccess === "function") {
+          onAuthSuccess(data.token, data.user || null);
+        }
       }
+
       setStatus(`Success! Logged in as ${data.user?.email || email}`);
     } catch (err) {
       console.error(err);
       setStatus("Network error");
     }
+  }
+
+  async function handleGoogleSuccess(credentialResponse) {
+    try {
+      const credential = credentialResponse.credential;
+      if (!credential) {
+        console.error("No credential from Google");
+        setStatus("Google login failed");
+        return;
+      }
+
+      const res = await fetch(`${API_BASE}/auth/google`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credential }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        console.error("Google login failed:", data);
+        setStatus(data.error || "Google login failed");
+        return;
+      }
+
+      if (data.token) {
+        localStorage.setItem("token", data.token);
+        if (typeof onAuthSuccess === "function") {
+          onAuthSuccess(data.token, data.user || null);
+        }
+      }
+
+      setStatus(`Success! Logged in as ${data.user?.email || "Google user"}`);
+    } catch (err) {
+      console.error("Google login error:", err);
+      setStatus("Google login error");
+    }
+  }
+
+  function handleGoogleError() {
+    console.error("Google login was unsuccessful");
+    setStatus("Google sign-in was cancelled or failed");
+  }
+
+  async function handleForgotPassword(e) {
+    e.preventDefault();
+    setResetStatus("Sending reset link...");
+
+    try {
+      const res = await fetch(`${API_BASE}/auth/forgot-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: resetEmail }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setResetStatus(data.error || "Something went wrong");
+        return;
+      }
+
+      setResetStatus(
+        data.message || "If this email exists, a reset link was sent."
+      );
+    } catch (err) {
+      console.error(err);
+      setResetStatus("Network error");
+    }
+  }
+
+  function switchMode(nextMode) {
+    setMode(nextMode);
+    setStatus("");
   }
 
   return (
@@ -75,10 +156,11 @@ function AuthForm({ onAuthSuccess }) {
           : "Create your account to track your cycles and get AI support."}
       </p>
 
+      {/* Login / Sign up toggle */}
       <div style={{ display: "flex", marginBottom: "16px" }}>
         <button
           type="button"
-          onClick={() => setMode("login")}
+          onClick={() => switchMode("login")}
           style={{
             flex: 1,
             padding: "8px",
@@ -93,7 +175,7 @@ function AuthForm({ onAuthSuccess }) {
         </button>
         <button
           type="button"
-          onClick={() => setMode("register")}
+          onClick={() => switchMode("register")}
           style={{
             flex: 1,
             padding: "8px",
@@ -109,6 +191,7 @@ function AuthForm({ onAuthSuccess }) {
         </button>
       </div>
 
+      {/* Main auth form */}
       <form onSubmit={handleSubmit}>
         {mode === "register" && (
           <>
@@ -219,6 +302,23 @@ function AuthForm({ onAuthSuccess }) {
         </button>
       </form>
 
+      {/* Google Sign-in */}
+      <div
+        style={{
+          marginTop: "12px",
+          display: "flex",
+          justifyContent: "center",
+        }}
+      >
+        <GoogleLogin
+          onSuccess={handleGoogleSuccess}
+          onError={handleGoogleError}
+          shape="pill"
+          text="continue_with"
+        />
+      </div>
+
+      {/* Main auth status */}
       {status && (
         <div
           style={{
@@ -232,6 +332,55 @@ function AuthForm({ onAuthSuccess }) {
           {status}
         </div>
       )}
+
+      {/* Forgot password section */}
+      <div
+        style={{
+          marginTop: "16px",
+          paddingTop: "12px",
+          borderTop: "1px solid #e5e7eb",
+          fontSize: "0.85rem",
+        }}
+      >
+        <div style={{ marginBottom: "4px", fontWeight: 500 }}>
+          Forgot your password?
+        </div>
+        <form
+          onSubmit={handleForgotPassword}
+          style={{ display: "flex", gap: 8, marginTop: 4 }}
+        >
+          <input
+            type="email"
+            placeholder="Enter your email"
+            value={resetEmail}
+            onChange={(e) => setResetEmail(e.target.value)}
+            style={{
+              flex: 1,
+              padding: "6px 8px",
+              borderRadius: "8px",
+              border: "1px solid #e5e7eb",
+            }}
+            required
+          />
+          <button
+            type="submit"
+            style={{
+              padding: "6px 10px",
+              borderRadius: "999px",
+              border: "none",
+              background: "#6b21a8",
+              color: "white",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Reset
+          </button>
+        </form>
+        {resetStatus && (
+          <div style={{ marginTop: 4, color: "#4b5563" }}>{resetStatus}</div>
+        )}
+      </div>
     </div>
   );
 }
