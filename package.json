@@ -6,7 +6,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "frontend": "cd frontend && npm start",
     "backend": "cd backend && npm start",
-    "start": "concurrently \"npm run frontend\" \"npm run backend\""
+    "dev": "concurrently \"npm run frontend\" \"npm run backend\""
   },
   "keywords": [],
   "author": "",
@@ -18,5 +18,8 @@
     "multer": "^2.0.2",
     "react-calendar": "^6.0.0",
     "react-day-picker": "^9.11.3"
+  },
+  "devDependencies": {
+    "baseline-browser-mapping": "^2.10.34"
   }
 }
