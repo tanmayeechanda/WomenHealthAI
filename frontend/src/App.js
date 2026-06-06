@@ -4,7 +4,6 @@ import { Routes, Route } from "react-router-dom";
 import AuthForm from "./components/AuthForm";
 import Dashboard from "./components/dashboard";
 import ResetPassword from "./components/ResetPassword"; // make sure this file exists
-import "react-calendar/dist/Calendar.css";
 
 const API_BASE = "http://localhost:4000/api";
 
