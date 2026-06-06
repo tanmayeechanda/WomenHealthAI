@@ -5,7 +5,7 @@ import AuthForm from "./components/AuthForm";
 import Dashboard from "./components/dashboard";
 import ResetPassword from "./components/ResetPassword"; // make sure this file exists
 
-const API_BASE = "http://localhost:4000/api";
+const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:4000/api";
 
 function App() {
   const [user, setUser] = useState(null);
