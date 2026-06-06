@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { GoogleLogin } from "@react-oauth/google";
 
-const API_BASE = "http://localhost:4000/api";
+const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:4000/api";
 
 function AuthForm({ onAuthSuccess }) {
   const [mode, setMode] = useState("login"); // 'login' or 'register'
@@ -117,7 +117,7 @@ function AuthForm({ onAuthSuccess }) {
       }
 
       setResetStatus(
-        data.message || "If this email exists, a reset link was sent."
+        data.message || "If this email exists, a reset link was sent.",
       );
     } catch (err) {
       console.error(err);
